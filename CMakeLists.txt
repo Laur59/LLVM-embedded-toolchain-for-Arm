@@ -166,6 +166,7 @@ set(LLVM_DISTRIBUTION_COMPONENTS
     llvm-strip
     llvm-symbolizer
     LTO
+    scan-build
     CACHE STRING ""
 )
 set(LLVM_TOOLCHAIN_DISTRIBUTION_COMPONENTS
