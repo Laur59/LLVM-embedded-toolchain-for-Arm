@@ -618,6 +618,7 @@ function(
         set(enable_long_double_test true)
     endif()
 
+    set(PICOLIBC_OPTIONS -Dmultilib=true -Dio-c99-formats=true -Dio-long-long=true -Dpicolib=true -Dnewlib-multithread=true -Dposix-io=true -Dpicocrt=false -Dpicocrt-lib=false -Dtests=false)
     ExternalProject_Add(
         picolibc_${variant}
         SOURCE_DIR ${picolibc_SOURCE_DIR}
@@ -630,7 +631,7 @@ function(
             -Dincludedir=include
             -Dlibdir=lib
             -Dspecsdir=none
-            -Dmultilib=false
+            ${PICOLIBC_OPTIONS}
             -Dtests-enable-stack-protector=false
             -Dtest-long-double=${enable_long_double_test}
             --prefix <INSTALL_DIR>
