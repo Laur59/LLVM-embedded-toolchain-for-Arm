@@ -1,19 +1,18 @@
-From 18f116651af0e328e6f9f6b0619171bd8a2c4817 Mon Sep 17 00:00:00 2001
-From: pwprzybyla <121295298+pwprzybyla@users.noreply.github.com>
-Date: Thu, 22 Feb 2024 14:04:21 +0100
-Subject: [PATCH] Multilib support for libraries with exceptions (#75031)
+From 78acc1685def3efa6e5af212f4edee7842de28a6 Mon Sep 17 00:00:00 2001
+From: Piotr Przybyla <piotr.przybyla@arm.com>
+Date: Wed, 29 Nov 2023 14:05:00 +0000
+Subject: [PATCH] Multilib support for libraries with exceptions and rtti
 
-For better multilib matching explicitly match -fno-rtti and -fno-exceptions
 ---
  clang/include/clang/Driver/ToolChain.h | 10 ++++++++++
  clang/lib/Driver/ToolChain.cpp         | 23 ++++++++++++++++++++++-
  2 files changed, 32 insertions(+), 1 deletion(-)
 
 diff --git a/clang/include/clang/Driver/ToolChain.h b/clang/include/clang/Driver/ToolChain.h
-index 2d0c1f826c17..fbe2e8fe8e88 100644
+index 2d0c1f826c1728..fbe2e8fe8e88d8 100644
 --- a/clang/include/clang/Driver/ToolChain.h
 +++ b/clang/include/clang/Driver/ToolChain.h
-@@ -120,6 +120,11 @@ public:
+@@ -120,6 +120,11 @@ class ToolChain {
      RM_Disabled,
    };
  
@@ -25,7 +24,7 @@ index 2d0c1f826c17..fbe2e8fe8e88 100644
    struct BitCodeLibraryInfo {
      std::string Path;
      bool ShouldInternalize;
-@@ -141,6 +146,8 @@ private:
+@@ -141,6 +146,8 @@ class ToolChain {
  
    const RTTIMode CachedRTTIMode;
  
@@ -34,7 +33,7 @@ index 2d0c1f826c17..fbe2e8fe8e88 100644
    /// The list of toolchain specific path prefixes to search for libraries.
    path_list LibraryPaths;
  
-@@ -318,6 +325,9 @@ public:
+@@ -318,6 +325,9 @@ class ToolChain {
    // Returns the RTTIMode for the toolchain with the current arguments.
    RTTIMode getRTTIMode() const { return CachedRTTIMode; }
  
@@ -45,7 +44,7 @@ index 2d0c1f826c17..fbe2e8fe8e88 100644
    /// the compiler driver as `ProgName`.
    ///
 diff --git a/clang/lib/Driver/ToolChain.cpp b/clang/lib/Driver/ToolChain.cpp
-index 388030592b48..f8c13c86daf9 100644
+index 388030592b4836..f8c13c86daf9b0 100644
 --- a/clang/lib/Driver/ToolChain.cpp
 +++ b/clang/lib/Driver/ToolChain.cpp
 @@ -77,10 +77,19 @@ static ToolChain::RTTIMode CalculateRTTIMode(const ArgList &Args,
@@ -88,6 +87,3 @@ index 388030592b48..f8c13c86daf9 100644
    // Sort and remove duplicates.
    std::sort(Result.begin(), Result.end());
    Result.erase(std::unique(Result.begin(), Result.end()), Result.end());
--- 
-2.39.3 (Apple Git-146)
-
