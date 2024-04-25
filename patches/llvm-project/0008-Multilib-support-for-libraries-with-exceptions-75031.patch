@@ -1,9 +1,14 @@
-From c4837fa13ec89cc06b07af8cba8494189520e546 Mon Sep 17 00:00:00 2001
-From: Laurent von Allmen <laurent@von-allmen.info>
-Date: Wed, 24 Apr 2024 16:04:24 +0000
-Subject: Multilib support for libraries with exceptions (#75031)
+From 18f116651af0e328e6f9f6b0619171bd8a2c4817 Mon Sep 17 00:00:00 2001
+From: pwprzybyla <121295298+pwprzybyla@users.noreply.github.com>
+Date: Thu, 22 Feb 2024 14:04:21 +0100
+Subject: [PATCH] Multilib support for libraries with exceptions (#75031)
 
+For better multilib matching explicitly match -fno-rtti and -fno-exceptions
 ---
+ clang/include/clang/Driver/ToolChain.h | 10 ++++++++++
+ clang/lib/Driver/ToolChain.cpp         | 23 ++++++++++++++++++++++-
+ 2 files changed, 32 insertions(+), 1 deletion(-)
+
 diff --git a/clang/include/clang/Driver/ToolChain.h b/clang/include/clang/Driver/ToolChain.h
 index 2d0c1f826c17..fbe2e8fe8e88 100644
 --- a/clang/include/clang/Driver/ToolChain.h
@@ -11,7 +16,7 @@ index 2d0c1f826c17..fbe2e8fe8e88 100644
 @@ -120,6 +120,11 @@ public:
      RM_Disabled,
    };
-
+ 
 +  enum ExceptionsMode {
 +    EM_Enabled,
 +    EM_Disabled,
@@ -21,18 +26,18 @@ index 2d0c1f826c17..fbe2e8fe8e88 100644
      std::string Path;
      bool ShouldInternalize;
 @@ -141,6 +146,8 @@ private:
-
+ 
    const RTTIMode CachedRTTIMode;
-
+ 
 +  const ExceptionsMode CachedExceptionsMode;
 +
    /// The list of toolchain specific path prefixes to search for libraries.
    path_list LibraryPaths;
-
+ 
 @@ -318,6 +325,9 @@ public:
    // Returns the RTTIMode for the toolchain with the current arguments.
    RTTIMode getRTTIMode() const { return CachedRTTIMode; }
-
+ 
 +  // Returns the ExceptionsMode for the toolchain with the current arguments.
 +  ExceptionsMode getExceptionsMode() const { return CachedExceptionsMode; }
 +
@@ -46,7 +51,7 @@ index 388030592b48..f8c13c86daf9 100644
 @@ -77,10 +77,19 @@ static ToolChain::RTTIMode CalculateRTTIMode(const ArgList &Args,
    return NoRTTI ? ToolChain::RM_Disabled : ToolChain::RM_Enabled;
  }
-
+ 
 +static ToolChain::ExceptionsMode CalculateExceptionsMode(const ArgList &Args) {
 +  if (Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions,
 +                   true)) {
@@ -67,7 +72,7 @@ index 388030592b48..f8c13c86daf9 100644
 @@ -264,6 +273,18 @@ ToolChain::getMultilibFlags(const llvm::opt::ArgList &Args) const {
      break;
    }
-
+ 
 +  // Include fno-exceptions and fno-rtti
 +  // to improve multilib selection
 +  if (getRTTIMode() == ToolChain::RTTIMode::RM_Disabled)
@@ -83,5 +88,6 @@ index 388030592b48..f8c13c86daf9 100644
    // Sort and remove duplicates.
    std::sort(Result.begin(), Result.end());
    Result.erase(std::unique(Result.begin(), Result.end()), Result.end());
---
-2.34.1
+-- 
+2.39.3 (Apple Git-146)
+
