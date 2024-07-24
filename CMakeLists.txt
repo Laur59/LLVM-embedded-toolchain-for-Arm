@@ -356,7 +356,7 @@ install(
     FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/Omax.cfg
     DESTINATION bin
-    COMPONENT llvm-toolchain-omax-cfg
+    COMPONENT llvm-toolchain-config-files
 )
 
 if(LLVM_TOOLCHAIN_C_LIBRARY STREQUAL llvmlibc)
@@ -1918,6 +1918,11 @@ if(LLVM_TOOLCHAIN_C_LIBRARY STREQUAL newlib)
     list(APPEND third_party_license_files
         ${newlib_SOURCE_DIR}/COPYING.NEWLIB             COPYING.NEWLIB
         ${newlib_SOURCE_DIR}/COPYING.LIBGLOSS           COPYING.LIBGLOSS
+    )
+endif()
+if(LLVM_TOOLCHAIN_C_LIBRARY STREQUAL llvmlibc)
+    list(APPEND third_party_license_files
+        ${llvmproject_SOURCE_DIR}/libc/LICENSE.TXT      LIBC-LICENSE.TXT
     )
 endif()
 
