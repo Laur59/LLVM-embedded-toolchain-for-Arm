@@ -87,6 +87,8 @@ To use the toolchain, on the command line you need to provide the following opti
 * The FPU to use.
 * Disabling/enabling C++ exceptions and RTTI.
 * The C runtime library: either `crt0` or `crt0-semihost`.
+  `crt0` will be linked automatically, but this can be suppressed
+  with the `-nostartfiles` option so that `crt0-semihost` can be used.
 * The semihosting library, if using `crt0-semihost`.
 * A [linker script](
   https://sourceware.org/binutils/docs/ld/Scripts.html) specified with `-T`.
@@ -102,6 +104,7 @@ $ clang \
 -mfpu=none \
 -fno-exceptions \
 -fno-rtti \
+-nostartfiles \
 -lcrt0-semihost \
 -lsemihost \
 -T picolibc.ld \
@@ -130,6 +133,7 @@ $ clang \
 -mfpu=none \
 -fno-exceptions \
 -fno-rtti \
+-nostartfiles \
 -lcrt0-semihost \
 -lsemihost \
 -T picolibc.ld \
@@ -138,6 +142,28 @@ $ clang \
 
 The FPU selection can be skipped, but it is not recommended to as the defaults
 are different to GCC ones.
+
+
+The builds of the toolchain come packaged with two config files, Omax.cfg and OmaxLTO.cfg.
+When used, these config files enable several build optimisation flags to achieve highest performance on typical embedded benchmarks. OmaxLTO.cfg enables link-time optimisation (LTO) specific flags.
+These configs can be optionally passed using the `--config` flag. For example:
+
+```
+$ clang \
+example.c \
+...
+--config=Omax.cfg \
+--config=OmaxLTO.cfg \
+-o example
+```
+
+Users should be warned that Omax.cfg enables `-ffast-math` which breaks IEEE compliance and
+enables maths optimisations which can affect code correctness.  LTOs are
+kept separately in OmaxLTO.cfg as users may not want LTOs due to potential increase in link time
+and/or increased memory usage during linking. Some of the options in the config files are undocumented internal LLVM options. For these undocumented options please see the source code of the
+corresponding optimisation passes in the [LLVM project](https://github.com/llvm/llvm-project)
+to find out more. Users are also encouraged to create their own configs and tune their own
+flag parameters.
 
 Binary releases of the LLVM Embedded Toolchain for Arm are based on release
 branches of the upstream LLVM Project, thus can safely be used with all tools
