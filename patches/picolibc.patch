@@ -5,7 +5,7 @@ index 0fdfa0412..8e679f166 100644
 @@ -1224,6 +1224,18 @@ if get_option('newlib-retargetable-locking') != get_option('newlib-multithread')
    error('newlib-retargetable-locking and newlib-multithread must be set to the same value')
  endif
- 
+
 +conf_data.set('_GNU_SOURCE', '',
 +        description: '''Enable GNU functions like strtof_l.
 +It's necessary to set this globally because inline functions in
@@ -35,3 +35,144 @@ index b97ea3300..04b94f35c 100644
  		*(.gnu.linkonce.t.*)
  		KEEP (*(.fini .fini.*))
  		@PREFIX@__text_end = .;
+diff --git a/newlib/libc/include/limits.h b/newlib/libc/include/limits.h
+index d05a759be..f663eeb9a 100644
+--- a/newlib/libc/include/limits.h
++++ b/newlib/libc/include/limits.h
+@@ -128,16 +128,30 @@
+
+ #endif	 /* !_LIBC_LIMITS_H_ */
+
+-/*
+- * Placing this outside of the above condition means that this will
+- * get run even from another picolibc provided limits.h file down the
+- * include chain.
+- */
+-#ifdef __GNUC__
++#if defined __GNUC__ && !defined _GCC_LIMITS_H_
++/* `_GCC_LIMITS_H_' is what GCC's file defines.  */
+ #ifdef __clang__
+ #ifndef __GLIBC_USE
+ #define __GLIBC_USE(x) 1
+ #endif
+ #endif
+ # include_next <limits.h>
+-#endif /* __GNUC__ */
++#endif /* __GNUC__ && !_GCC_LIMITS_H_ */
++
++#ifndef _POSIX2_RE_DUP_MAX
++/* The maximum number of repeated occurrences of a regular expression
++ *    permitted when using the interval notation `\{M,N\}'.  */
++#define _POSIX2_RE_DUP_MAX              255
++#endif /* _POSIX2_RE_DUP_MAX  */
++
++#ifndef ARG_MAX
++#define ARG_MAX		4096
++#endif
++
++#ifndef PATH_MAX
++#define PATH_MAX	4096
++#endif
++
++#ifndef ATEXIT_MAX
++#define ATEXIT_MAX	32
++#endif
+diff --git a/newlib/libc/include/sys/syslimits.h b/newlib/libc/include/sys/syslimits.h
+index 98fccf996..db575cdec 100644
+--- a/newlib/libc/include/sys/syslimits.h
++++ b/newlib/libc/include/sys/syslimits.h
+@@ -35,33 +35,32 @@
+
+ #include <sys/cdefs.h>
+
+-#if __POSIX_VISIBLE
+-
+-/* Runtime invariant values */
+ #define	ARG_MAX			65536	/* max bytes for an exec function */
+-#define ATEXIT_MAX                 32   /* max atexit functions */
++#ifndef CHILD_MAX
+ #define	CHILD_MAX		   40	/* max simultaneous processes */
+-#define	IOV_MAX			 1024	/* max elements in i/o vector */
+-#define	OPEN_MAX		   64	/* max open files per process */
+-#define TZNAME_MAX                 10   /* max time zone name length */
+-
+-/* Pathname values */
++#endif
+ #define	LINK_MAX		32767	/* max file link count */
+ #define	MAX_CANON		  255	/* max bytes in term canon input line */
+ #define	MAX_INPUT		  255	/* max bytes in terminal input */
+ #define	NAME_MAX		  255	/* max bytes in a file name */
++#define	NGROUPS_MAX		   16	/* max supplemental group id's */
++#ifndef OPEN_MAX
++#define	OPEN_MAX		   64	/* max open files per process */
++#endif
+ #define	PATH_MAX		 1024	/* max bytes in pathname */
+ #define	PIPE_BUF		  512	/* max bytes for atomic pipe writes */
++#define	IOV_MAX			 1024	/* max elements in i/o vector */
+
+-/* Runtime increasable values */
++#define	BC_BASE_MAX		   99	/* max ibase/obase values in bc(1) */
++#define	BC_DIM_MAX		 2048	/* max array elements in bc(1) */
++#define	BC_SCALE_MAX		   99	/* max scale value in bc(1) */
++#define	BC_STRING_MAX		 1000	/* max const string length in bc(1) */
+ #define	COLL_WEIGHTS_MAX	    0	/* max weights for order keyword */
+ #define	EXPR_NEST_MAX		   32	/* max expressions nested in expr(1) */
+ #define	LINE_MAX		 2048	/* max bytes in an input line */
+ #define	RE_DUP_MAX		  255	/* max RE's in interval notation */
+
+-#endif /* __POSIX_VISIBLE */
+-
+-#if __MISC_VISIBLE
++#if __POSIX_VISIBLE
+ #define NSIG_MAX       __LONG_WIDTH__   /* max signal number */
+ #endif
+
+diff --git a/newlib/libc/include/sys/unistd.h b/newlib/libc/include/sys/unistd.h
+index cfb43460b..dabd1f855 100644
+--- a/newlib/libc/include/sys/unistd.h
++++ b/newlib/libc/include/sys/unistd.h
+@@ -375,12 +375,6 @@ int	unlinkat (int, const char *, int);
+ #define STDOUT_FILENO   1       /* standard output file descriptor */
+ #define STDERR_FILENO   2       /* standard error file descriptor */
+
+-#ifndef _POSIX2_RE_DUP_MAX
+-/* The maximum number of repeated occurrences of a regular expression
+- *    permitted when using the interval notation `\{M,N\}'.  */
+-#define _POSIX2_RE_DUP_MAX              255
+-#endif /* _POSIX2_RE_DUP_MAX  */
+-
+ /*
+  *  sysconf values per IEEE Std 1003.1, 2008 Edition
+  */
+diff --git a/newlib/libc/posix/utils.h b/newlib/libc/posix/utils.h
+index 3be2491f0..96ad0e1e9 100644
+--- a/newlib/libc/posix/utils.h
++++ b/newlib/libc/posix/utils.h
+@@ -34,10 +34,8 @@
+  * $FreeBSD: src/lib/libc/regex/utils.h,v 1.2 2002/03/22 23:41:56 obrien Exp $
+  */
+
+-#include <limits.h>     /* for RE_DUP_MAX */
+-
+ /* utility definitions */
+-#define	DUPMAX		RE_DUP_MAX	/* xxx is this right? */
++#define	DUPMAX		_POSIX2_RE_DUP_MAX	/* xxx is this right? */
+ #define	REGEX_INFINITY	(DUPMAX + 1)
+ #define	NC		(CHAR_MAX - CHAR_MIN + 1)
+ typedef unsigned char uch;
+diff --git a/newlib/libc/time/tzset.c b/newlib/libc/time/tzset.c
+index d2c003cb4..3be6f889b 100644
+--- a/newlib/libc/time/tzset.c
++++ b/newlib/libc/time/tzset.c
+@@ -104,10 +104,10 @@ Supporting OS subroutine required: None
+ #include <string.h>
+ #include <sys/types.h>
+ #include <time.h>
+-#include <limits.h>
+ #include "local.h"
+
+ #define TZNAME_MIN	3	/* POSIX min TZ abbr size local def */
++#define TZNAME_MAX	10	/* POSIX max TZ abbr size local def */
+
+ static char __tzname_std[TZNAME_MAX + 2];
+ static char __tzname_dst[TZNAME_MAX + 2];
