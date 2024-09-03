@@ -279,7 +279,7 @@ endif()
 # ed551e0778a35f00ab60f1c80d83ea8274d8d400.
 set(
     llvm_project_patches
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0001-libc-tests-with-picolibc-xfail-two-remaining-tests.patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0001-libc-tests-with-picolibc-xfail-one-remaining-test.patch
     ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0002-libc-tests-with-picolibc-disable-large-tests.patch
     ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0003-Disable-failing-compiler-rt-test.patch
     ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0004-libc-tests-with-picolibc-XFAIL-uses-of-atomics.patch
@@ -1809,6 +1809,74 @@ add_library_variants_for_cpu(
     SUFFIX hard_nofp_mve
     COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+mve -mfpu=none"
     MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+mve -mfpu=none"
+    PICOLIBC_BUILD_TYPE "release"
+    QEMU_MACHINE "mps3-an547"
+    QEMU_CPU "cortex-m55"
+    BOOT_FLASH_ADDRESS 0x00000000
+    BOOT_FLASH_SIZE 512K
+    FLASH_ADDRESS 0x60000000
+    FLASH_SIZE 0x1000000
+    RAM_ADDRESS 0x61000000
+    RAM_SIZE 0x1000000
+    STACK_SIZE 4K
+)
+# FIXME: qemu currently has no support for PACBTI-M, so the branch protection
+# variants below can't be fully tested in runtime. Since PACBTI-M instructions
+# are NOP-compatible we can use the cortex-m55 CPU for now, but these should be
+# updated to use a PACBTI-M enabled CPU once this is available.
+add_library_variants_for_cpu(
+    armv8.1m.main
+    SUFFIX soft_nofp_nomve_pacret_bti
+    COMPILE_FLAGS "-mfloat-abi=soft -march=armv8.1m.main+nomve -mfpu=none -mbranch-protection=standard"
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabi -mfpu=none -mbranch-protection=standard"
+    PICOLIBC_BUILD_TYPE "release"
+    QEMU_MACHINE "mps3-an547"
+    QEMU_CPU "cortex-m55"
+    BOOT_FLASH_ADDRESS 0x00000000
+    BOOT_FLASH_SIZE 512K
+    FLASH_ADDRESS 0x60000000
+    FLASH_SIZE 0x1000000
+    RAM_ADDRESS 0x61000000
+    RAM_SIZE 0x1000000
+    STACK_SIZE 4K
+)
+add_library_variants_for_cpu(
+    armv8.1m.main
+    SUFFIX hard_fp_nomve_pacret_bti
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=standard"
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+fp16 -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=standard"
+    PICOLIBC_BUILD_TYPE "release"
+    QEMU_MACHINE "mps3-an547"
+    QEMU_CPU "cortex-m55"
+    BOOT_FLASH_ADDRESS 0x00000000
+    BOOT_FLASH_SIZE 512K
+    FLASH_ADDRESS 0x60000000
+    FLASH_SIZE 0x1000000
+    RAM_ADDRESS 0x61000000
+    RAM_SIZE 0x1000000
+    STACK_SIZE 4K
+)
+add_library_variants_for_cpu(
+    armv8.1m.main
+    SUFFIX hard_fpdp_nomve_pacret_bti
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=standard"
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+fp16 -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=standard"
+    PICOLIBC_BUILD_TYPE "release"
+    QEMU_MACHINE "mps3-an547"
+    QEMU_CPU "cortex-m55"
+    BOOT_FLASH_ADDRESS 0x00000000
+    BOOT_FLASH_SIZE 512K
+    FLASH_ADDRESS 0x60000000
+    FLASH_SIZE 0x1000000
+    RAM_ADDRESS 0x61000000
+    RAM_SIZE 0x1000000
+    STACK_SIZE 4K
+)
+add_library_variants_for_cpu(
+    armv8.1m.main
+    SUFFIX hard_nofp_mve_pacret_bti
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+mve -mfpu=none -mbranch-protection=standard"
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+mve -mfpu=none -mbranch-protection=standard"
     PICOLIBC_BUILD_TYPE "release"
     QEMU_MACHINE "mps3-an547"
     QEMU_CPU "cortex-m55"
