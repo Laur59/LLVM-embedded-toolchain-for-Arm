@@ -1,27 +1,26 @@
-From cb6cfe0e5fc29d3867f523900f0d46a4ef5dff1b Mon Sep 17 00:00:00 2001
+From 1db48238bfbc5324dadf828532a4c67524dc471b Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Dominik=20W=C3=B3jt?= <dominik.wojt@arm.com>
 Date: Mon, 16 Oct 2023 11:35:48 +0200
-Subject: [libc++] tests with picolibc: xfail two remaining tests
+Subject: [PATCH] [libc++] tests with picolibc: xfail one remaining test
 
 ---
- .../cmp/cmp.alg/strong_order_long_double.verify.cpp          | 5 +++++
- .../language.support/support.start.term/quick_exit.pass.cpp  | 3 +++
- 2 files changed, 8 insertions(+)
+ .../language.support/support.start.term/quick_exit.pass.cpp    | 3 +++
+ 1 file changed, 3 insertions(+)
 
 diff --git a/libcxx/test/std/language.support/support.start.term/quick_exit.pass.cpp b/libcxx/test/std/language.support/support.start.term/quick_exit.pass.cpp
-index 5a70ea5bd570..92dfbe8eb1ab 100644
+index d8eff69cb5..e16048df72 100644
 --- a/libcxx/test/std/language.support/support.start.term/quick_exit.pass.cpp
 +++ b/libcxx/test/std/language.support/support.start.term/quick_exit.pass.cpp
-@@ -16,6 +16,9 @@
-
+@@ -17,6 +17,9 @@
+ 
  // test quick_exit and at_quick_exit
-
+ 
 +// TODO: Find out why the at_quick_exit symbol is not found.
 +// XFAIL: LIBCXX-PICOLIBC-FIXME
 +
  #include <cstdlib>
-
+ 
  void f() {}
---
+-- 
 2.34.1
 
