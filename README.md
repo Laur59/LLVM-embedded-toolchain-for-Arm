@@ -26,7 +26,11 @@ embedded and realtime operating systems.
 - Armv4T (experimental)
 - Armv5TE (experimental)
 - Armv6 (experimental, using the Armv5TE library variant)
-- AArch64 armv8.0 (experimental)
+- Armv7-A
+- Armv7-R
+- AArch32 Armv8-A
+- AArch32 Armv8-R
+- AArch64 Armv8-A
 
 ## C++ support
 
@@ -55,6 +59,10 @@ Content of this repository is licensed under Apache-2.0. See
 
 The resulting binaries are covered under their respective open source licenses,
 see component links above.
+
+Testing for some targets uses the freely-available but not open-source Arm FVP
+models, which have their own licenses. These are not used by default, see
+[Building from source](docs/building-from-source.md) for details.
 
 ## Host platforms
 

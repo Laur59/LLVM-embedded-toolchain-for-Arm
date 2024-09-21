@@ -134,7 +134,14 @@ option(
     the tools every time you update llvm-project."
     ON
 )
-
+set(
+    FVP_INSTALL_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/fvp/install" CACHE STRING
+    "The directory in which the FVP models are installed. These are not
+    included in this repository, but can be downloaded by the script
+    fvp/get_fvps.sh"
+)
+set(FVP_CONFIG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fvp/config")
 set(LLVM_TOOLCHAIN_C_LIBRARY
     "picolibc" CACHE STRING
     "Which C library to use."
@@ -393,6 +400,19 @@ if(LLVM_TOOLCHAIN_C_LIBRARY STREQUAL llvmlibc)
     # find one for every libc type. We have no current setup to run the LLVM
     # libc test suite.
     add_custom_target(check-llvmlibc)
+
+    # LLVM libc lacks a configuration for AArch64, but the AArch32 one works
+    # fine. However, setting the configuration for both architectures to the
+    # arm config directory means the baremetal config.json is never loaded,
+    # as it resides in the directory above. To ensure both are used, copy
+    # them to the same location and point libc to that.
+    set(LIBC_CFG_DIR ${CMAKE_BINARY_DIR}/llvmlibc-config)
+    file(COPY
+        ${llvmproject_SOURCE_DIR}/libc/config/baremetal/config.json
+        ${llvmproject_SOURCE_DIR}/libc/config/baremetal/arm/.
+        DESTINATION
+        ${LIBC_CFG_DIR}
+    )
 endif()
 
 add_subdirectory(
@@ -632,7 +652,7 @@ set(LLVM_DEFAULT_EXTERNAL_LIT "${LLVM_BINARY_DIR}/bin/llvm-lit")
 
 add_custom_target(check-newlib) # FIXME: put things in this
 
-function(get_test_executor_params target_triple qemu_machine qemu_cpu qemu_params)
+function(get_qemu_params target_triple qemu_machine qemu_cpu qemu_params)
     if(target_triple MATCHES "^aarch64")
         set(qemu_command "qemu-system-aarch64")
     else()
@@ -656,6 +676,24 @@ function(get_test_executor_params target_triple qemu_machine qemu_cpu qemu_param
     set(test_executor_params "${test_executor_params}" PARENT_SCOPE)
 endfunction()
 
+function(get_fvp_params fvp_model fvp_config)
+    set(
+        test_executor_params
+        --fvp-install-dir ${FVP_INSTALL_DIR}
+        --fvp-config-dir ${FVP_CONFIG_DIR}
+        --fvp-model ${fvp_model}
+    )
+    string(REPLACE " " ";" fvp_config_list ${fvp_config})
+    foreach(cfg ${fvp_config_list})
+          set(
+              test_executor_params
+              ${test_executor_params}
+              --fvp-config ${cfg}
+          )
+    endforeach()
+    set(test_executor_params "${test_executor_params}" PARENT_SCOPE)
+endfunction()
+
 function(
     add_picolibc
     directory
@@ -671,6 +709,7 @@ function(
     default_ram_addr
     default_ram_size
     default_stack_size
+    run_tests
 )
     if(CMAKE_INSTALL_MESSAGE STREQUAL NEVER)
         set(MESON_INSTALL_QUIET "--quiet")
@@ -753,10 +792,12 @@ function(
     # only in tests step, otherwise, they would be built before install.
     ExternalProject_Add_StepDependencies(picolibc_${variant} test compiler_rt_${variant}-install)
 
-    add_custom_target(check-picolibc-${variant})
-    add_dependencies(check-picolibc-${variant} picolibc_${variant}-test)
-    add_dependencies(check-picolibc check-picolibc-${variant})
-    add_dependencies(llvm-toolchain-runtimes picolibc_${variant})
+    if(run_tests)
+        add_custom_target(check-picolibc-${variant})
+        add_dependencies(check-picolibc-${variant} picolibc_${variant}-test)
+        add_dependencies(check-picolibc check-picolibc-${variant})
+        add_dependencies(llvm-toolchain-runtimes picolibc_${variant})
+    endif()
 endfunction()
 
 function(
@@ -913,7 +954,7 @@ function(
         ${common_cmake_args}
         -DLIBC_TARGET_TRIPLE=${target_triple}
         -DLIBC_HDRGEN_EXE=${LIBC_HDRGEN}
-        -DLIBC_CONFIG_PATH=${llvmproject_SOURCE_DIR}/libc/config/baremetal/arm # llvmlibc has no AArch64 bare-metal configuration, but the AArch32 one is fine
+        -DLIBC_CONFIG_PATH=${LIBC_CFG_DIR}
         -DLIBC_CONF_TIME_64BIT=ON
         -DLLVM_CMAKE_DIR=${LLVM_BINARY_DIR}/lib/cmake/llvm
         -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
@@ -985,6 +1026,7 @@ macro(
     default_ram_addr
     default_ram_size
     default_stack_size
+    run_tests
 )
     # It would be nice to just pass ${ARGN} to both the underlying functions,
     # but that has the side effect of expanding any list arguments (e.g.
@@ -1006,6 +1048,7 @@ macro(
             "${default_ram_addr}"
             "${default_ram_size}"
             "${default_stack_size}"
+            "${run_tests}"
         )
     elseif(LLVM_TOOLCHAIN_C_LIBRARY STREQUAL newlib)
         add_newlib(
@@ -1317,9 +1360,12 @@ function(add_library_variant target_arch)
         COMPILE_FLAGS
         MULTILIB_FLAGS
         PICOLIBC_BUILD_TYPE
+        EXECUTOR
         QEMU_MACHINE
         QEMU_CPU
         QEMU_PARAMS
+        FVP_MODEL
+        FVP_CONFIG
         BOOT_FLASH_ADDRESS
         BOOT_FLASH_SIZE
         FLASH_ADDRESS
@@ -1365,17 +1411,36 @@ function(add_library_variant target_arch)
 
     set(directory "${TARGET_LIBRARIES_DIR}${library_subdir}/${parent_dir_name}/${variant}")
     set(VARIANT_COMPILE_FLAGS "--target=${target_triple} ${VARIANT_COMPILE_FLAGS}")
-    get_test_executor_params(
-        "${target_triple}"
-        "${VARIANT_QEMU_MACHINE}"
-        "${VARIANT_QEMU_CPU}"
-        "${VARIANT_QEMU_PARAMS}"
-    )
-    set(
-        lit_test_executor
-        ${CMAKE_CURRENT_SOURCE_DIR}/test-support/lit-exec-qemu.py
-        ${test_executor_params}
-    )
+
+    if(VARIANT_EXECUTOR STREQUAL "fvp")
+      if(EXISTS "${FVP_INSTALL_DIR}")
+            get_fvp_params(
+              "${VARIANT_FVP_MODEL}"
+              "${VARIANT_FVP_CONFIG}"
+            )
+            set(
+                lit_test_executor
+                ${CMAKE_CURRENT_SOURCE_DIR}/test-support/lit-exec-fvp.py
+                ${test_executor_params}
+            )
+            set(have_executor TRUE)
+        else()
+            set(have_executor FALSE)
+        endif()
+    else()
+        get_qemu_params(
+            "${target_triple}"
+            "${VARIANT_QEMU_MACHINE}"
+            "${VARIANT_QEMU_CPU}"
+            "${VARIANT_QEMU_PARAMS}"
+        )
+        set(
+            lit_test_executor
+            ${CMAKE_CURRENT_SOURCE_DIR}/test-support/lit-exec-qemu.py
+            ${test_executor_params}
+        )
+        set(have_executor TRUE)
+    endif()
     list(JOIN lit_test_executor " " lit_test_executor)
     if(NOT PREBUILT_TARGET_LIBRARIES)
         add_libc(
@@ -1392,6 +1457,7 @@ function(add_library_variant target_arch)
             "${VARIANT_RAM_ADDRESS}"
             "${VARIANT_RAM_SIZE}"
             "${VARIANT_STACK_SIZE}"
+            "${have_executor}"
         )
         add_compiler_rt(
             "${directory}"
@@ -1414,7 +1480,9 @@ function(add_library_variant target_arch)
                 ${VARIANT_ENABLE_RTTI}
             )
         endif()
-        if(VARIANT_COMPILE_FLAGS MATCHES "-march=armv8")
+        if(NOT have_executor)
+            message("All library tests disabled for ${variant}, due to missing executor")
+        elseif(VARIANT_COMPILE_FLAGS MATCHES "-march=armv8")
             message("C++ runtime libraries tests disabled for ${variant}")
         else()
             add_custom_target(check-llvm-toolchain-runtimes-${variant})
@@ -1443,6 +1511,26 @@ function(add_library_variant target_arch)
     set(multilib_yaml_content "${multilib_yaml_content}" PARENT_SCOPE)
 endfunction()
 
+function(add_nonexistent_library_variant)
+    set(
+        one_value_args
+        MULTILIB_FLAGS
+        ERROR_MESSAGE
+    )
+    cmake_parse_arguments(ERR "" "${one_value_args}" "" ${ARGN})
+
+    string(APPEND multilib_yaml_content "- FatalError: \"${ERR_ERROR_MESSAGE}\"\n")
+
+    string(APPEND multilib_yaml_content "  Flags:\n")
+    string(REPLACE " " ";" multilib_flags_list ${ERR_MULTILIB_FLAGS})
+    foreach(flag ${multilib_flags_list})
+        string(APPEND multilib_yaml_content "  - ${flag}\n")
+    endforeach()
+    string(APPEND multilib_yaml_content "  Group: stdlibs\n")
+
+    set(multilib_yaml_content "${multilib_yaml_content}" PARENT_SCOPE)
+endfunction()
+
 function(add_library_variants_for_cpu target_arch)
     set(
         one_value_args
@@ -1450,9 +1538,12 @@ function(add_library_variants_for_cpu target_arch)
         COMPILE_FLAGS
         MULTILIB_FLAGS
         PICOLIBC_BUILD_TYPE
+        EXECUTOR
         QEMU_MACHINE
         QEMU_CPU
         QEMU_PARAMS
+        FVP_MODEL
+        FVP_CONFIG
         BOOT_FLASH_ADDRESS
         BOOT_FLASH_SIZE
         FLASH_ADDRESS
@@ -1482,9 +1573,12 @@ function(add_library_variants_for_cpu target_arch)
             COMPILE_FLAGS "${VARIANT_COMPILE_FLAGS}"
             MULTILIB_FLAGS "${VARIANT_MULTILIB_FLAGS}"
             PICOLIBC_BUILD_TYPE "${VARIANT_PICOLIBC_BUILD_TYPE}"
+            EXECUTOR "${VARIANT_EXECUTOR}"
             QEMU_MACHINE "${VARIANT_QEMU_MACHINE}"
             QEMU_CPU "${VARIANT_QEMU_CPU}"
             QEMU_PARAMS "${VARIANT_QEMU_PARAMS}"
+            FVP_MODEL "${VARIANT_FVP_MODEL}"
+            FVP_CONFIG "${VARIANT_FVP_CONFIG}"
             BOOT_FLASH_ADDRESS "${VARIANT_BOOT_FLASH_ADDRESS}"
             BOOT_FLASH_SIZE "${VARIANT_BOOT_FLASH_SIZE}"
             FLASH_ADDRESS "${VARIANT_FLASH_ADDRESS}"
@@ -1856,20 +1950,28 @@ add_library_variants_for_cpu(
     RAM_SIZE 0x1000000
     STACK_SIZE 4K
 )
-# FIXME: qemu currently has no support for PACBTI-M, so the branch protection
-# variants below can't be fully tested in runtime. Since PACBTI-M instructions
-# are NOP-compatible we can use the cortex-m55 CPU for now, but these should be
-# updated to use a PACBTI-M enabled CPU once this is available.
+add_nonexistent_library_variant(
+    # We don't build any MVE-capable libraries with the soft-float ABI.
+    # We do have Armv7-M soft-float libraries, but you can't fall back to
+    # using those, because MVE requires the FPSCR to be set up specially
+    # at startup time, and our v7-M soft-float libraries don't do that.
+    #
+    # So, rather than select one of those libraries and silently generate
+    # wrong MVE code, we force an error report instead.
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabi -march=thumbv8.1m.main+mve"
+    ERROR_MESSAGE "No library available for MVE with soft-float ABI. Try -mfloat-abi=hard."
+)
 add_library_variants_for_cpu(
     armv8.1m.main
     SUFFIX soft_nofp_nomve_pacret_bti
-    COMPILE_FLAGS "-mfloat-abi=soft -march=armv8.1m.main+nomve -mfpu=none -mbranch-protection=standard"
-    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabi -mfpu=none -mbranch-protection=standard"
+    COMPILE_FLAGS "-mfloat-abi=soft -march=armv8.1m.main+nomve+pacbti -mfpu=none -mbranch-protection=pac-ret+bti"
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabi -mfpu=none -mbranch-protection=pac-ret+bti"
     PICOLIBC_BUILD_TYPE "release"
-    QEMU_MACHINE "mps3-an547"
-    QEMU_CPU "cortex-m55"
-    BOOT_FLASH_ADDRESS 0x00000000
-    BOOT_FLASH_SIZE 512K
+    EXECUTOR fvp
+    FVP_MODEL corstone-310
+    FVP_CONFIG "cortex-m85 m-pacbti m-nofp mve-none"
+    BOOT_FLASH_ADDRESS 0x01000000
+    BOOT_FLASH_SIZE 2M
     FLASH_ADDRESS 0x60000000
     FLASH_SIZE 0x1000000
     RAM_ADDRESS 0x61000000
@@ -1879,13 +1981,14 @@ add_library_variants_for_cpu(
 add_library_variants_for_cpu(
     armv8.1m.main
     SUFFIX hard_fp_nomve_pacret_bti
-    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=standard"
-    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+fp16 -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=standard"
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve+pacbti -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=pac-ret+bti"
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+fp16 -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=pac-ret+bti"
     PICOLIBC_BUILD_TYPE "release"
-    QEMU_MACHINE "mps3-an547"
-    QEMU_CPU "cortex-m55"
-    BOOT_FLASH_ADDRESS 0x00000000
-    BOOT_FLASH_SIZE 512K
+    EXECUTOR fvp
+    FVP_MODEL corstone-310
+    FVP_CONFIG "cortex-m85 m-pacbti m-fp mve-none"
+    BOOT_FLASH_ADDRESS 0x01000000
+    BOOT_FLASH_SIZE 2M
     FLASH_ADDRESS 0x60000000
     FLASH_SIZE 0x1000000
     RAM_ADDRESS 0x61000000
@@ -1895,13 +1998,14 @@ add_library_variants_for_cpu(
 add_library_variants_for_cpu(
     armv8.1m.main
     SUFFIX hard_fpdp_nomve_pacret_bti
-    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=standard"
-    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+fp16 -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=standard"
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve+pacbti -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=pac-ret+bti"
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+fp16 -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=pac-ret+bti"
     PICOLIBC_BUILD_TYPE "release"
-    QEMU_MACHINE "mps3-an547"
-    QEMU_CPU "cortex-m55"
-    BOOT_FLASH_ADDRESS 0x00000000
-    BOOT_FLASH_SIZE 512K
+    EXECUTOR fvp
+    FVP_MODEL corstone-310
+    FVP_CONFIG "cortex-m85 m-pacbti m-fp mve-none"
+    BOOT_FLASH_ADDRESS 0x01000000
+    BOOT_FLASH_SIZE 2M
     FLASH_ADDRESS 0x60000000
     FLASH_SIZE 0x1000000
     RAM_ADDRESS 0x61000000
@@ -1911,13 +2015,14 @@ add_library_variants_for_cpu(
 add_library_variants_for_cpu(
     armv8.1m.main
     SUFFIX hard_nofp_mve_pacret_bti
-    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+mve -mfpu=none -mbranch-protection=standard"
-    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+mve -mfpu=none -mbranch-protection=standard"
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+mve+pacbti -mfpu=none -mbranch-protection=pac-ret+bti"
+    MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+mve -mfpu=none -mbranch-protection=pac-ret+bti"
     PICOLIBC_BUILD_TYPE "release"
-    QEMU_MACHINE "mps3-an547"
-    QEMU_CPU "cortex-m55"
-    BOOT_FLASH_ADDRESS 0x00000000
-    BOOT_FLASH_SIZE 512K
+    EXECUTOR fvp
+    FVP_MODEL corstone-310
+    FVP_CONFIG "cortex-m85 m-pacbti m-nofp mve-int"
+    BOOT_FLASH_ADDRESS 0x01000000
+    BOOT_FLASH_SIZE 2M
     FLASH_ADDRESS 0x60000000
     FLASH_SIZE 0x1000000
     RAM_ADDRESS 0x61000000

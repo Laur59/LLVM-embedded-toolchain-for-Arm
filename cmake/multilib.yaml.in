@@ -152,6 +152,12 @@ Mappings:
 - Match: --target=(arm|thumb)v(8|8\.[1-9]|9|9\.[1-9])a-unknown-none-eabihf
   Flags:
   - --target=armv7-unknown-none-eabihf
+- Match: --target=(arm|thumb)v(8|8\.[1-9]|9|9\.[1-9])r-unknown-none-eabi
+  Flags:
+  - --target=armv7r-unknown-none-eabi
+- Match: --target=(arm|thumb)v(8|8\.[1-9]|9|9\.[1-9])r-unknown-none-eabihf
+  Flags:
+  - --target=armv7r-unknown-none-eabihf
 
 # -march extensions
 - Match: -march=thumbv8\.[1-9]m\.main(\+[^\+]+)*\+fp16(\+[^\+]+)*
@@ -168,6 +174,6 @@ Mappings:
   - -march=thumbv8.1m.main+lob
 
 # -mbranch-protection options
-- Match: -mbranch-protection=(standard|pac-ret(\+leaf)?\+bti|bti\+pac-ret(\+leaf)?)
+- Match: -mbranch-protection=(standard|pac-ret(\+leaf)?(\+bti)?|bti(\+pac-ret(\+leaf)?)?)
   Flags:
   - -mbranch-protection=pac-ret+bti
