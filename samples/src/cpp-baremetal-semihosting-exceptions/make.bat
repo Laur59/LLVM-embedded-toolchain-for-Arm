@@ -1,4 +1,4 @@
-@REM Copyright (c) 2023, Arm Limited and affiliates.
+@REM Copyright (c) 2024, Arm Limited and affiliates.
 @REM SPDX-License-Identifier: Apache-2.0
 @REM
 @REM Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,6 @@
 
 :make
 @if [%target%]==[build] goto :build
-@if [%target%]==[build-trap] goto :build-trap
 @if [%target%]==[run] goto :run
 @if [%target%]==[clean] goto :clean
 @echo Error: unknown target "%target%"
@@ -32,22 +31,20 @@
 @call :build_fn
 @exit /B
 
-:build-trap
-@if [%BIN_PATH%]==[] goto :bin_path_empty
-@call :build_trap_fn
-@exit /B
-
 :run
 @if exist hello.hex goto :do_run
 @if [%BIN_PATH%]==[] goto :bin_path_empty
 @call :build_fn
 :do_run
 qemu-system-arm.exe -M microbit -semihosting -nographic -device loader,file=hello.hex
+qemu-system-arm.exe -M microbit -semihosting -nographic -device loader,file=hello-exn.hex
 @exit /B
 
 :clean
 if exist hello.elf del /q hello.elf
 if exist hello.hex del /q hello.hex
+if exist hello-exn.elf del /q hello-exn.elf
+if exist hello-exn.hex del /q hello-exn.hex
 @exit /B
 
 :bin_path_empty
@@ -55,11 +52,13 @@ if exist hello.hex del /q hello.hex
 @exit /B 1
 
 :build_fn
-%BIN_PATH%\clang++.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -lcrt0-semihost -lsemihost -fno-exceptions -fno-rtti --std=c++17 -fsanitize=undefined -fsanitize-minimal-runtime -g -T ../../ldscripts/microbit.ld -o hello.elf *.cpp
+%BIN_PATH%\clang++.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -lcrt0-semihost -lsemihost -fno-exceptions -fno-rtti -print-multi-directory -g -T ..\..\ldscripts\microbit.ld -o hello.elf hello.cpp
+%BIN_PATH%\clang++.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -lcrt0-semihost -lsemihost -fno-exceptions -fno-rtti -g -T ..\..\ldscripts\microbit.ld -o hello.elf hello.cpp
 %BIN_PATH%\llvm-objcopy.exe -O ihex hello.elf hello.hex
+%BIN_PATH%\clang++.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -lcrt0-semihost -lsemihost -print-multi-directory -g -T ..\..\ldscripts\microbit.ld -o hello-exn.elf hello-exn.cpp
+%BIN_PATH%\clang++.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -lcrt0-semihost -lsemihost -g -T ..\..\ldscripts\microbit.ld -o hello-exn.elf hello-exn.cpp
+%BIN_PATH%\llvm-objcopy.exe -O ihex hello-exn.elf hello-exn.hex
 @exit /B
 
-:build_trap_fn
-%BIN_PATH%\clang++.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -lcrt0-semihost -lsemihost -fno-exceptions -fno-rtti --std=c++17 -fsanitize=undefined -fsanitize-trap=all -g -T ../../ldscripts/microbit.ld -o hello.elf *.cpp
-%BIN_PATH%\llvm-objcopy.exe -O ihex hello.elf hello.hex
+:build_exn_fn
 @exit /B

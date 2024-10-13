@@ -26,7 +26,11 @@ embedded and realtime operating systems.
 - Armv4T (experimental)
 - Armv5TE (experimental)
 - Armv6 (experimental, using the Armv5TE library variant)
-- AArch64 armv8.0 (experimental)
+- Armv7-A
+- Armv7-R
+- AArch32 Armv8-A
+- AArch32 Armv8-R
+- AArch64 Armv8-A
 
 ## C++ support
 
@@ -87,8 +91,6 @@ To use the toolchain, on the command line you need to provide the following opti
 * The FPU to use.
 * Disabling/enabling C++ exceptions and RTTI.
 * The C runtime library: either `crt0` or `crt0-semihost`.
-  `crt0` will be linked automatically, but this can be suppressed
-  with the `-nostartfiles` option so that `crt0-semihost` can be used.
 * The semihosting library, if using `crt0-semihost`.
 * A [linker script](
   https://sourceware.org/binutils/docs/ld/Scripts.html) specified with `-T`.
@@ -104,7 +106,6 @@ $ clang \
 -mfpu=none \
 -fno-exceptions \
 -fno-rtti \
--nostartfiles \
 -lcrt0-semihost \
 -lsemihost \
 -T picolibc.ld \
@@ -133,7 +134,6 @@ $ clang \
 -mfpu=none \
 -fno-exceptions \
 -fno-rtti \
--nostartfiles \
 -lcrt0-semihost \
 -lsemihost \
 -T picolibc.ld \

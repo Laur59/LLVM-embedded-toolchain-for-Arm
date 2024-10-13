@@ -13,7 +13,7 @@
     },
     "picolibc": {
       "tagType": "commithash",
-      "tag": "27746bbc"
+      "tag": "d492d5fa"
     },
     "newlib": {
       "tagType": "tag",

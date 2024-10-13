@@ -180,6 +180,7 @@ set(LLVM_DISTRIBUTION_COMPONENTS
     llvm-readelf
     llvm-readobj
     llvm-size
+    llvm-strings
     llvm-strip
     llvm-symbolizer
     LTO
@@ -279,11 +280,14 @@ endif()
 # ed551e0778a35f00ab60f1c80d83ea8274d8d400.
 set(
     llvm_project_patches
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0001-libc-tests-with-picolibc-xfail-one-remaining-test.patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0001-libc-tests-with-picolibc-xfail-two-remaining-tests.patch
     ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0002-libc-tests-with-picolibc-disable-large-tests.patch
     ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0003-Disable-failing-compiler-rt-test.patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0004-libc-tests-with-picolibc-XFAIL-uses-of-atomics.patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0005-libc-tests-with-picolibc-mark-two-more-large-tests.patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0004-libc-tests-with-picolibc-mark-sort-test-as-long-one.patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0005-libc-tests-with-picolibc-XFAIL-uses-of-atomics.patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0006-libc-tests-with-picolibc-mark-two-more-large-tests.patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0007-Remove-ctime.timespec.compile.pass.cpp-xfail.patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0008-libc-AArch64-Add-an-AArch64-setjmp-longjmp-101177.patch
 )
 FetchContent_Declare(llvmproject
     GIT_REPOSITORY https://github.com/llvm/llvm-project.git
@@ -393,6 +397,19 @@ if(LLVM_TOOLCHAIN_C_LIBRARY STREQUAL llvmlibc)
     # find one for every libc type. We have no current setup to run the LLVM
     # libc test suite.
     add_custom_target(check-llvmlibc)
+
+    # LLVM libc lacks a configuration for AArch64, but the AArch32 one works
+    # fine. However, setting the configuration for both architectures to the
+    # arm config directory means the baremetal config.json is never loaded,
+    # as it resides in the directory above. To ensure both are used, copy
+    # them to the same location and point libc to that.
+    set(LIBC_CFG_DIR ${CMAKE_BINARY_DIR}/llvmlibc-config)
+    file(COPY
+        ${llvmproject_SOURCE_DIR}/libc/config/baremetal/config.json
+        ${llvmproject_SOURCE_DIR}/libc/config/baremetal/arm/.
+        DESTINATION
+        ${LIBC_CFG_DIR}
+    )
 endif()
 
 add_subdirectory(
@@ -913,8 +930,9 @@ function(
         ${common_cmake_args}
         -DLIBC_TARGET_TRIPLE=${target_triple}
         -DLIBC_HDRGEN_EXE=${LIBC_HDRGEN}
-        -DLIBC_CONFIG_PATH=${llvmproject_SOURCE_DIR}/libc/config/baremetal/arm # llvmlibc has no AArch64 bare-metal configuration, but the AArch32 one is fine
+        -DLIBC_CONFIG_PATH=${LIBC_CFG_DIR}
         -DLIBC_CONF_TIME_64BIT=ON
+        -DLIBC_NAMESPACE=__llvm_libc_${LLVM_VERSION_MAJOR}_${LLVM_VERSION_MINOR}_${LLVM_VERSION_PATCH} # The default namespace generated for release candidates is invalid
         -DLLVM_CMAKE_DIR=${LLVM_BINARY_DIR}/lib/cmake/llvm
         -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
         -DLLVM_ENABLE_RUNTIMES=libc
@@ -1076,7 +1094,7 @@ Hard-float library with target triple \"${target_triple}\" must end \"-eabihf\""
 
     get_runtimes_flags("${directory}" "${flags}")
 
-    set(compiler_rt_test_flags "${runtimes_flags} -fno-exceptions -fno-rtti -nostartfiles -lcrt0-semihost -lsemihost -T picolibcpp.ld")
+    set(compiler_rt_test_flags "${runtimes_flags} -fno-exceptions -fno-rtti -lcrt0-semihost -lsemihost -T picolibcpp.ld")
     if(variant STREQUAL "armv6m_soft_nofp")
         set(compiler_rt_test_flags "${compiler_rt_test_flags} -fomit-frame-pointer")
     endif()
@@ -1203,7 +1221,6 @@ function(
         -DLIBCXXABI_TEST_PARAMS=executor=${test_executor}
         -DLIBCXX_ABI_UNSTABLE=ON
         -DLIBCXX_CXX_ABI=libcxxabi
-        -DLIBCXX_STATICALLY_LINK_ABI_IN_STATIC_LIBRARY=ON
         -DLIBCXX_ENABLE_FILESYSTEM=OFF
         -DLIBCXX_ENABLE_SHARED=OFF
         -DLIBCXX_ENABLE_STATIC=ON
@@ -1440,6 +1457,26 @@ function(add_library_variant target_arch)
         DESTINATION "${directory}"
         COMPONENT llvm-toolchain-libs
     )
+    set(multilib_yaml_content "${multilib_yaml_content}" PARENT_SCOPE)
+endfunction()
+
+function(add_nonexistent_library_variant)
+    set(
+        one_value_args
+        MULTILIB_FLAGS
+        ERROR_MESSAGE
+    )
+    cmake_parse_arguments(ERR "" "${one_value_args}" "" ${ARGN})
+
+    string(APPEND multilib_yaml_content "- Error: \"${ERR_ERROR_MESSAGE}\"\n")
+
+    string(APPEND multilib_yaml_content "  Flags:\n")
+    string(REPLACE " " ";" multilib_flags_list ${ERR_MULTILIB_FLAGS})
+    foreach(flag ${multilib_flags_list})
+        string(APPEND multilib_yaml_content "  - ${flag}\n")
+    endforeach()
+    string(APPEND multilib_yaml_content "  Group: stdlibs\n")
+
     set(multilib_yaml_content "${multilib_yaml_content}" PARENT_SCOPE)
 endfunction()
 
@@ -1863,7 +1900,7 @@ add_library_variants_for_cpu(
 add_library_variants_for_cpu(
     armv8.1m.main
     SUFFIX soft_nofp_nomve_pacret_bti
-    COMPILE_FLAGS "-mfloat-abi=soft -march=armv8.1m.main+nomve -mfpu=none -mbranch-protection=standard"
+    COMPILE_FLAGS "-mfloat-abi=soft -march=armv8.1m.main+nomve+pacbti -mfpu=none -mbranch-protection=standard"
     MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabi -mfpu=none -mbranch-protection=standard"
     PICOLIBC_BUILD_TYPE "release"
     QEMU_MACHINE "mps3-an547"
@@ -1879,7 +1916,7 @@ add_library_variants_for_cpu(
 add_library_variants_for_cpu(
     armv8.1m.main
     SUFFIX hard_fp_nomve_pacret_bti
-    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=standard"
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve+pacbti -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=standard"
     MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+fp16 -mfpu=fp-armv8-fullfp16-sp-d16 -mbranch-protection=standard"
     PICOLIBC_BUILD_TYPE "release"
     QEMU_MACHINE "mps3-an547"
@@ -1895,7 +1932,7 @@ add_library_variants_for_cpu(
 add_library_variants_for_cpu(
     armv8.1m.main
     SUFFIX hard_fpdp_nomve_pacret_bti
-    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=standard"
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+nomve+pacbti -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=standard"
     MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+fp16 -mfpu=fp-armv8-fullfp16-d16 -mbranch-protection=standard"
     PICOLIBC_BUILD_TYPE "release"
     QEMU_MACHINE "mps3-an547"
@@ -1911,7 +1948,7 @@ add_library_variants_for_cpu(
 add_library_variants_for_cpu(
     armv8.1m.main
     SUFFIX hard_nofp_mve_pacret_bti
-    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+mve -mfpu=none -mbranch-protection=standard"
+    COMPILE_FLAGS "-mfloat-abi=hard -march=armv8.1m.main+mve+pacbti -mfpu=none -mbranch-protection=standard"
     MULTILIB_FLAGS "--target=thumbv8.1m.main-unknown-none-eabihf -march=thumbv8.1m.main+mve -mfpu=none -mbranch-protection=standard"
     PICOLIBC_BUILD_TYPE "release"
     QEMU_MACHINE "mps3-an547"
@@ -1933,7 +1970,7 @@ configure_file(
 )
 
 set(multilib_yaml_depends
-    "${CMAKE_CURRENT_SOURCE_DIR}/multilib-fpus.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/multilib-generate.py"
     "${CMAKE_CURRENT_BINARY_DIR}/multilib-without-fpus.yaml"
 )
 if(LIBS_DEPEND_ON_TOOLS)
@@ -1945,7 +1982,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy
     ${CMAKE_CURRENT_BINARY_DIR}/multilib-without-fpus.yaml
     ${CMAKE_CURRENT_BINARY_DIR}/llvm/${TARGET_LIBRARIES_DIR}${library_subdir}/multilib.yaml
-  COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/multilib-fpus.py"
+  COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/multilib-generate.py"
     "--clang=${LLVM_BINARY_DIR}/bin/clang${CMAKE_EXECUTABLE_SUFFIX}"
     "--llvm-source=${llvmproject_SOURCE_DIR}"
     >> "${CMAKE_CURRENT_BINARY_DIR}/llvm/${TARGET_LIBRARIES_DIR}${library_subdir}/multilib.yaml"

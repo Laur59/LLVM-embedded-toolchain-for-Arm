@@ -6,7 +6,7 @@
 # archive was created. This is configured in the .gitattributes file.
 # In the former case, this script will run a Git command to find out the
 # current revision. In the latter case the revision will be used as is.
-set(LLVMEmbeddedToolchainForArm_COMMIT "$Format:%H$")
+set(LLVMEmbeddedToolchainForArm_COMMIT "3619d0b558cbf6255794f580365038b756df12d1")
 
 if(NOT ${LLVMEmbeddedToolchainForArm_COMMIT} MATCHES "^[a-f0-9]+$")
     execute_process(

@@ -37,8 +37,8 @@
 @call :build_fn
 :do_run
 qemu-system-arm.exe -M microbit -semihosting -nographic -device loader,file=hello.hex
-llvm-profdata.exe merge -sparse default.profraw -o hello.profdata
-llvm-cov.exe show hello.elf -instr-profile=hello.profdata
+%BIN_PATH%\llvm-profdata.exe merge -sparse default.profraw -o hello.profdata
+%BIN_PATH%\llvm-cov.exe show hello.elf -instr-profile=hello.profdata
 @exit /B
 
 :clean
@@ -55,6 +55,6 @@ if exist proflib.o del /q proflib.o
 
 :build_fn
 %BIN_PATH%\clang.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -g -c proflib.c
-%BIN_PATH%\clang++.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -nostartfiles -lcrt0-semihost -lsemihost -fno-exceptions -fno-rtti -g -T ..\..\ldscripts\microbit.ld -fprofile-instr-generate -fcoverage-mapping -o hello.elf hello.cpp proflib.o
+%BIN_PATH%\clang++.exe --target=armv6m-none-eabi -mfloat-abi=soft -march=armv6m -mfpu=none -lcrt0-semihost -lsemihost -fno-exceptions -fno-rtti -g -T ..\..\ldscripts\microbit.ld -fprofile-instr-generate -fcoverage-mapping -o hello.elf hello.cpp proflib.o
 %BIN_PATH%\llvm-objcopy.exe -O ihex hello.elf hello.hex
 @exit /B
