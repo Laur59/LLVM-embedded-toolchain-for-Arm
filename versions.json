@@ -9,11 +9,11 @@
     "llvm-project": {
       "comment": "tagType can be branch, tag or commithash",
       "tagType": "commithash",
-      "tag": "1e75d086"
+      "tag": "48deb356"
     },
     "picolibc": {
       "tagType": "commithash",
-      "tag": "21d8fed7"
+      "tag": "d492d5fa"
     },
     "newlib": {
       "tagType": "tag",

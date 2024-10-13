@@ -284,7 +284,7 @@ endif()
 # The patches are generated from custom branch, with followin command:
 #   git format-patch -k origin/main
 # The patches apply cleanly against llvm-project commit
-# ed551e0778a35f00ab60f1c80d83ea8274d8d400.
+# 327124ece7d59de56ca0f9faa2cd82af68c011b9.
 set(
     llvm_project_patches
     ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0001-libc-tests-with-picolibc-xfail-one-remaining-test.patch
@@ -333,18 +333,24 @@ if(NOT (LLVM_TOOLCHAIN_C_LIBRARY STREQUAL llvmlibc)) # libc in a separate repo?
   FetchContent_MakeAvailable(${LLVM_TOOLCHAIN_C_LIBRARY})
 endif()
 
+##################################################################################################
+# We set all project properties later, this call is just to enable the
+# CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT check
+project(LLVMEmbeddedToolchainForArm)
 # We generally want to install to a local directory to see what the
 # output will look like rather than install into the system, so change
 # the default accordingly.
 # See https://cmake.org/cmake/help/latest/variable/CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT.html
-# Note that this code only works after the first call to project so it
-# can't be moved after the add_subdirectory command below.
+# Note that THIS CODE ONLY WORKS AFTER THE FIRST CALL TO PROJECT so it
+# can't be moved after the add_subdirectory(<llvm>) command below as it will be too late -
+# the llvm project will set it to the default system install directory.
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX
         "${CMAKE_BINARY_DIR}/install"
         CACHE PATH "" FORCE
     )
 endif()
+##################################################################################################
 
 # Whether to try to build C++ libraries. (We can't currently do this
 # for all choices of C library.)
@@ -1245,6 +1251,7 @@ function(
         -DLIBCXXABI_USE_COMPILER_RT=ON
         -DLIBCXXABI_USE_LLVM_UNWINDER=ON
         -DLIBCXXABI_TEST_PARAMS=executor=${test_executor}
+        -DLIBCXXABI_SHARED_OUTPUT_NAME="c++abi-shared"
         -DLIBCXX_ABI_UNSTABLE=ON
         -DLIBCXX_CXX_ABI=libcxxabi
         -DLIBCXX_STATICALLY_LINK_ABI_IN_STATIC_LIBRARY=ON
@@ -1253,12 +1260,14 @@ function(
         -DLIBCXX_ENABLE_STATIC=ON
         -DLIBCXX_INCLUDE_BENCHMARKS=OFF
         -DLIBCXX_TEST_PARAMS=executor=${test_executor}
+        -DLIBCXX_SHARED_OUTPUT_NAME="c++-shared"
         -DLIBUNWIND_ENABLE_SHARED=OFF
         -DLIBUNWIND_ENABLE_STATIC=ON
         -DLIBUNWIND_IS_BAREMETAL=ON
         -DLIBUNWIND_REMEMBER_HEAP_ALLOC=ON
         -DLIBUNWIND_USE_COMPILER_RT=ON
         -DLIBUNWIND_TEST_PARAMS=executor=${test_executor}
+        -DLIBUNWIND_SHARED_OUTPUT_NAME="unwind-shared"
         -DLLVM_LIT_ARGS=${LLVM_LIT_ARGS}
         -DLLVM_ENABLE_RUNTIMES=libcxxabi,libcxx,libunwind
         -DRUNTIME_TEST_ARCH_FLAGS=${flags}
@@ -1520,7 +1529,7 @@ function(add_nonexistent_library_variant)
     )
     cmake_parse_arguments(ERR "" "${one_value_args}" "" ${ARGN})
 
-    string(APPEND multilib_yaml_content "- FatalError: \"${ERR_ERROR_MESSAGE}\"\n")
+    string(APPEND multilib_yaml_content "- Error: \"${ERR_ERROR_MESSAGE}\"\n")
 
     string(APPEND multilib_yaml_content "  Flags:\n")
     string(REPLACE " " ";" multilib_flags_list ${ERR_MULTILIB_FLAGS})
