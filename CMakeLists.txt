@@ -134,6 +134,11 @@ option(
     the tools every time you update llvm-project."
     ON
 )
+option(
+    APPLY_LLVM_PERFORMANCE_PATCHES
+    "During checkout, apply optional downstream patches to
+    llvm-project to improve performance."
+)
 set(
     FVP_INSTALL_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/fvp/install" CACHE STRING
@@ -281,24 +286,17 @@ if(NOT (LLVM_TOOLCHAIN_C_LIBRARY STREQUAL llvmlibc)) # libc in a separate repo?
   read_repo_version(${LLVM_TOOLCHAIN_C_LIBRARY} ${LLVM_TOOLCHAIN_C_LIBRARY})
 endif()
 
-# The patches are generated from custom branch, with followin command:
-#   git format-patch -k origin/main
-# The patches apply cleanly against llvm-project commit
-# 327124ece7d59de56ca0f9faa2cd82af68c011b9.
-set(
-    llvm_project_patches
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0001-libc-tests-with-picolibc-xfail-one-remaining-test.patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0002-libc-tests-with-picolibc-disable-large-tests.patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0003-Disable-failing-compiler-rt-test.patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0004-libc-tests-with-picolibc-XFAIL-uses-of-atomics.patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project/0005-libc-tests-with-picolibc-mark-two-more-large-tests.patch
-)
+set(LLVM_PATCH_COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_llvm.py ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project)
+if(APPLY_LLVM_PERFORMANCE_PATCHES)
+    set(LLVM_PATCH_COMMAND ${LLVM_PATCH_COMMAND} && ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_llvm.py ${CMAKE_CURRENT_SOURCE_DIR}/patches/llvm-project-perf)
+endif()
+
 FetchContent_Declare(llvmproject
     GIT_REPOSITORY https://github.com/llvm/llvm-project.git
     GIT_TAG "${llvmproject_TAG}"
     GIT_SHALLOW "${llvmproject_SHALLOW}"
     GIT_PROGRESS TRUE
-    PATCH_COMMAND git reset --quiet --hard && git clean --quiet --force -dx && git am -k --ignore-whitespace --3way ${llvm_project_patches}
+    PATCH_COMMAND ${LLVM_PATCH_COMMAND}
     # Add the llvm subdirectory later to ensure that
     # LLVMEmbeddedToolchainForArm is the first project declared.
     # Otherwise CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT
@@ -381,6 +379,12 @@ if(LLVM_TOOLCHAIN_C_LIBRARY STREQUAL llvmlibc)
         COMPONENT llvm-toolchain-llvmlibc-configs
     )
 
+    install(
+      DIRECTORY
+      ${CMAKE_CURRENT_SOURCE_DIR}/llvmlibc-samples/src
+      DESTINATION samples
+      COMPONENT llvm-toolchain-llvmlibc-configs
+    )
     # We aren't yet able to build C++ libraries to go with llvm-libc
     set(CXX_LIBS OFF)
 
@@ -1261,6 +1265,7 @@ function(
         -DLIBCXX_INCLUDE_BENCHMARKS=OFF
         -DLIBCXX_TEST_PARAMS=executor=${test_executor}
         -DLIBCXX_SHARED_OUTPUT_NAME="c++-shared"
+        -DLIBUNWIND_ENABLE_ASSERTIONS=OFF
         -DLIBUNWIND_ENABLE_SHARED=OFF
         -DLIBUNWIND_ENABLE_STATIC=ON
         -DLIBUNWIND_IS_BAREMETAL=ON
@@ -1779,9 +1784,9 @@ add_library_variants_for_cpu(
 )
 add_library_variants_for_cpu(
     armv7r
-    SUFFIX soft_vfpv3_d16
-    COMPILE_FLAGS "-mfloat-abi=softfp -march=armv7r -mfpu=vfpv3-d16"
-    MULTILIB_FLAGS "--target=armv7r-unknown-none-eabi -mfpu=vfpv3-d16"
+    SUFFIX soft_vfpv3xd
+    COMPILE_FLAGS "-mfloat-abi=softfp -march=armv7r -mfpu=vfpv3xd"
+    MULTILIB_FLAGS "--target=armv7r-unknown-none-eabi -mfpu=vfpv3xd"
     PICOLIBC_BUILD_TYPE "release"
     QEMU_MACHINE "none"
     QEMU_CPU "cortex-r5f"
