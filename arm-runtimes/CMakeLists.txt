@@ -376,6 +376,7 @@ if(C_LIBRARY STREQUAL picolibc)
 
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meson-cross-build.txt.in ${CMAKE_CURRENT_BINARY_DIR}/meson-cross-build.txt @ONLY)
 
+    set(PICOLIBC_OPTIONS -Dmultilib=false -Dio-c99-formats=true -Dio-long-long=true -Dpicolib=true -Dnewlib-multithread=true -Dposix-io=true -Dpicocrt=false -Dpicocrt-lib=false -Dtests=false)
     ExternalProject_Add(
         picolibc
         SOURCE_DIR ${picolibc_SOURCE_DIR}
@@ -387,6 +388,7 @@ if(C_LIBRARY STREQUAL picolibc)
             -Dincludedir=include
             -Dlibdir=lib
             -Dspecsdir=none
+            ${PICOLIBC_OPTIONS}
             -Dmultilib=false
             -Dtests-enable-stack-protector=false
             -Dtest-long-double=${enable_picolibc_long_double_test}
