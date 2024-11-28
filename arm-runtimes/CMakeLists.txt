@@ -101,10 +101,10 @@ set(LIBC_HDRGEN "" CACHE PATH "Path to prebuilt lbc-hdrgen if not included in LL
 # Temporary location to collect the libraries as they are built.
 set(TEMP_LIB_DIR "${CMAKE_CURRENT_BINARY_DIR}/tmp_install")
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 include(ExternalProject)
 include(${TOOLCHAIN_SOURCE_DIR}/cmake/fetch_llvm.cmake)
-
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # If a compiler launcher such as ccache has been set, it should be
 # passed down to each subproject build.
@@ -392,6 +392,7 @@ if(C_LIBRARY STREQUAL picolibc)
             -Dmultilib=false
             -Dtests-enable-stack-protector=false
             -Dtest-long-double=${enable_picolibc_long_double_test}
+            -Dtest-machine=${TEST_EXECUTOR}
             -Dnewlib-nano-malloc=${newlib_nano_malloc}
             -Dtests=false
             --prefix <INSTALL_DIR>

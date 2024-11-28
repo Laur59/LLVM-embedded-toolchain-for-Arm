@@ -13,8 +13,8 @@ read_repo_version(picolibc picolibc)
 
 set(
     picolibc_patches
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/picolibc/0001-Enable-libcxx-builds.patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/patches/picolibc/0002-Add-bootcode-for-AArch64-FVPs.patch
+    ${CMAKE_CURRENT_LIST_DIR}/../patches/picolibc/0001-Enable-libcxx-builds.patch
+    ${CMAKE_CURRENT_LIST_DIR}/../patches/picolibc/0002-Add-bootcode-for-AArch64-FVPs.patch
 )
 
 FetchContent_Declare(picolibc
@@ -29,3 +29,4 @@ FetchContent_Declare(picolibc
     SOURCE_SUBDIR do_not_add_picolibc_subdir
 )
 FetchContent_MakeAvailable(picolibc)
+FetchContent_GetProperties(picolibc SOURCE_DIR FETCHCONTENT_SOURCE_DIR_PICOLIBC)
