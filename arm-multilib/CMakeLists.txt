@@ -34,8 +34,13 @@ set_property(CACHE C_LIBRARY PROPERTY STRINGS picolibc newlib llvmlibc)
 set(LLVM_BINARY_DIR "" CACHE PATH "Path to LLVM toolchain build or install root.")
 set(LIBC_HDRGEN "" CACHE PATH "Path to prebuilt lbc-hdrgen if not included in LLVM binaries set by LLVM_BINARY_DIR")
 option(
+    ENABLE_QEMU_TESTING
+    "Enable tests that use QEMU. This option is ON by default."
+    ON
+)
+option(
     ENABLE_FVP_TESTING
-    "Tests using FVP need to be explictly enabled."
+    "Enable tests that use FVPs. This option is OFF by default."
 )
 set(
     FVP_INSTALL_DIR
@@ -136,6 +141,7 @@ math(EXPR lib_count_dec "${lib_count} - 1")
 foreach(lib_idx RANGE ${lib_count_dec})
     string(JSON lib_def GET ${multilib_defs} ${lib_idx})
     string(JSON variant GET ${lib_def} "variant")
+    set(additional_cmake_args "")
 
     if(variant IN_LIST ENABLE_VARIANTS OR ENABLE_VARIANTS STREQUAL "all")
         string(JSON variant_multilib_flags GET ${lib_def} "flags")
@@ -161,10 +167,10 @@ foreach(lib_idx RANGE ${lib_count_dec})
             file(READ ${variant_json_file} variant_json_str)
             string(JSON test_executor GET ${variant_json_str} "args" "common" "TEST_EXECUTOR")
 
-            # FVP testing should default to off, so override any 
-            # settings from the JSON.
-            if(test_executor STREQUAL "fvp" AND NOT ${ENABLE_FVP_TESTING})
-                set(additional_cmake_args "-DENABLE_LIBC_TESTS=OFF" "-DENABLE_COMPILER_RT_TESTS=OFF" "-DENABLE_LIBCXX_TESTS=OFF")
+            # The multilib project can be configured to disable QEMU and/or FVP
+            # testing, which will need to override the settings from the json.
+            if((test_executor STREQUAL "qemu" AND NOT ${ENABLE_QEMU_TESTING}) OR (test_executor STREQUAL "fvp" AND NOT ${ENABLE_FVP_TESTING}))
+                list(APPEND additional_cmake_args "-DENABLE_LIBC_TESTS=OFF" "-DENABLE_COMPILER_RT_TESTS=OFF" "-DENABLE_LIBCXX_TESTS=OFF")
                 set(read_ENABLE_LIBC_TESTS "OFF")
                 set(read_ENABLE_COMPILER_RT_TESTS "OFF")
                 set(read_ENABLE_LIBCXX_TESTS "OFF")
