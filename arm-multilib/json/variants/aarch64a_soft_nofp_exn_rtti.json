@@ -2,7 +2,7 @@
     "args": {
         "common": {
             "TARGET_ARCH": "aarch64a",
-            "VARIANT": "aarch64a_soft_nofp",
+            "VARIANT": "aarch64a_soft_nofp_exn_rtti",
             "COMPILE_FLAGS": "-march=armv8-a+nofp+nosimd -mabi=aapcs-soft -mno-unaligned-access",
             "ENABLE_EXCEPTIONS": "OFF",
             "ENABLE_RTTI": "OFF",
