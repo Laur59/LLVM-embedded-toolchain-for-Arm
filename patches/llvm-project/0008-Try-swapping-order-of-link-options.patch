@@ -1,0 +1,28 @@
+From f4f69b485de1a149afc6d672ffdbc3f01cc96f6b Mon Sep 17 00:00:00 2001
+From: Laur59 <148864407+Laur59@users.noreply.github.com>
+Date: Fri, 13 Dec 2024 08:55:03 +0200
+Subject: [PATCH] Try swapping order of link options
+
+---
+ clang/lib/Driver/ToolChains/BareMetal.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/clang/lib/Driver/ToolChains/BareMetal.cpp b/clang/lib/Driver/ToolChains/BareMetal.cpp
+index eecaaa9a429..bc102926f39 100644
+--- a/clang/lib/Driver/ToolChains/BareMetal.cpp
++++ b/clang/lib/Driver/ToolChains/BareMetal.cpp
+@@ -491,9 +491,9 @@ void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+   }
+ 
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+-    AddRunTimeLibs(TC, D, CmdArgs, Args);
+-
+     CmdArgs.push_back("-lc");
++
++    AddRunTimeLibs(TC, D, CmdArgs, Args);
+   }
+ 
+   if (D.isUsingLTO()) {
+-- 
+2.39.5 (Apple Git-154)
+
