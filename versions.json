@@ -9,7 +9,7 @@
     "llvm-project": {
       "comment": "tagType can be branch, tag or commithash",
       "tagType": "commithash",
-      "tag": "50054ba2f44"
+      "tag": "82fecab85ae"
     },
     "picolibc": {
       "tagType": "commithash",
