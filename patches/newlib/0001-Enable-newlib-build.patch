@@ -1,12 +1,13 @@
-From 39a131f2114898498ca5ba4affd4191ade6ffca9 Mon Sep 17 00:00:00 2001
-From: Laur59 <148864407+Laur59@users.noreply.github.com>
-Date: Mon, 6 Jan 2025 15:37:46 +0200
-Subject: [PATCH] Apply adapted version of patch file from project LLVM for Arm
+From 928f527624c6cbc1d897c5f36309981971f47873 Mon Sep 17 00:00:00 2001
+From: Volodymyr Turanskyy <volodymyr.turanskyy@arm.com>
+Date: Thu, 2 Jan 2025 16:23:27 +0000
+Subject: [PATCH] Update patch for newlib-4.5.0 tag
 
+Change-Id: Iec24f4305ad35a3a6df1672bb14555bf81249130
 ---
  libgloss/Makefile.in               |   2 +-
  libgloss/aarch64/syscalls.c        |   6 ++
- libgloss/arm/cpu-init/rdimon-aem.S | 105 +++++++++++++++--------------
+ libgloss/arm/cpu-init/rdimon-aem.S | 107 +++++++++++++++--------------
  libgloss/arm/crt0.S                |   2 +-
  libgloss/arm/linux-crt0.c          |   2 +-
  libgloss/arm/syscalls.c            |   6 +-
@@ -48,7 +49,7 @@ index 5b4071893..cfe1d6d23 100644
  initialise_monitor_handles (void)
  {
 diff --git a/libgloss/arm/cpu-init/rdimon-aem.S b/libgloss/arm/cpu-init/rdimon-aem.S
-index 95b86e4d4..449530db9 100644
+index 95b86e4d4..b91034ae6 100644
 --- a/libgloss/arm/cpu-init/rdimon-aem.S
 +++ b/libgloss/arm/cpu-init/rdimon-aem.S
 @@ -60,7 +60,7 @@
@@ -135,7 +136,7 @@ index 95b86e4d4..449530db9 100644
      adr         r4, page_table_addr	@ Load the base for vectors
      ldr         r4, [r4]
      mrc         p15, 0, r0, c0, c0, 5   @ read MPIDR
-@@ -138,17 +138,17 @@ spin:
+@@ -138,24 +138,24 @@ spin:
      addne       r4, r4, #0x58
      add         r4, r4, #1
  
@@ -158,6 +159,14 @@ index 95b86e4d4..449530db9 100644
  
      @ Now install the vector code - we move the Vector code from where it is
      @ in the image to be based at _rdimon_vector_base.  We have to do this copy
+     @ as the code is all PC-relative.  We actually cheat and do a BX <reg> so
+     @ that we are at a known address relatively quickly and have to move as
+     @ little code as possible.
+-    mov         r7, #(VectorCode_Limit - VectorCode)
++    mov         r7, #:lower16:(VectorCode_Limit - VectorCode)
+     adr         r5, VectorCode
+     adr         r6, vector_base_addr	@ Load the base for vectors
+     ldr         r6, [r6]
 @@ -166,25 +166,25 @@ copy_loop:                              @ Do the copy
      subs        r7, r7, #4
      bne         copy_loop
@@ -402,22 +411,22 @@ index 325acdf5f..12cb6465b 100644
  #ifndef __GNUC_PREREQ
  # if defined __GNUC__ && defined __GNUC_MINOR__
 diff --git a/newlib/libc/machine/arm/setjmp.S b/newlib/libc/machine/arm/setjmp.S
-index 0070f17cd..fb935bce1 100644
+index 0070f17cd..a53f7918e 100644
 --- a/newlib/libc/machine/arm/setjmp.S
 +++ b/newlib/libc/machine/arm/setjmp.S
-@@ -79,10 +79,10 @@
+@@ -78,10 +78,10 @@
+     covers all the cases we need in this file for hardware
      floating-point and should be compatible with all required FPUs
      that we need to support.  */
- # if __ARM_FP
--	.fpu vfpxd
-+/*	.fpu vfpxd*/
+-# if __ARM_FP
++# if __ARM_FP && !__clang__
+ 	.fpu vfpxd
  # endif
- # if __ARM_FEATURE_MVE
--	.arch_extension mve
-+/*	.arch_extension mve*/
+-# if __ARM_FEATURE_MVE
++# if __ARM_FEATURE_MVE && !__clang__
+ 	.arch_extension mve
  # endif
  #endif
- 
 diff --git a/newlib/libc/sys/arm/crt0.S b/newlib/libc/sys/arm/crt0.S
 index dae0f0465..51e86d549 100644
 --- a/newlib/libc/sys/arm/crt0.S
@@ -445,5 +454,5 @@ index 681b3dbe0..8a49f39f3 100644
          .global __rt_stkovf_split_small
  
 -- 
-2.39.5 (Apple Git-154)
+2.47.1
 
